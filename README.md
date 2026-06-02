@@ -11,3 +11,7 @@ This repository contains custom standard PPO experiments with exploration bonuse
 ```bash
 python ppo_rnd.py --env-id CartPole-v1 --exploration rnd --rnd-coef 0.01 --total-timesteps 200000
 python ppo_icm.py --env-id CartPole-v1 --exploration icm --icm-coef 0.01 --total-timesteps 200000
+
+## Plotting
+
+tensorboard --logdir runs
