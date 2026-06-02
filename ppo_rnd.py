@@ -388,6 +388,15 @@ if __name__ == "__main__":
                 nn.utils.clip_grad_norm_(agent.parameters(), args.max_grad_norm)
                 optimizer.step()
 
+                # RND updaet
+                if args.exploration == "rnd":
+                    rnd_loss = rnd_model.loss(b_next_obs_flat)
+
+                    rnd_optimizer.zero_grad()
+                    rnd_loss.backward()
+                    rnd_optimizer.step()
+
+
             if args.target_kl is not None and approx_kl > args.target_kl:
                 break
 
@@ -408,12 +417,6 @@ if __name__ == "__main__":
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
         if args.exploration == "rnd":
-            rnd_loss = rnd_model.loss(b_next_obs_flat)
-
-            rnd_optimizer.zero_grad()
-            rnd_loss.backward()
-            rnd_optimizer.step()
-
             writer.add_scalar("losses/rnd_loss", rnd_loss.item(), global_step)
             writer.add_scalar("charts/mean_intrinsic_reward", intrinsic_rewards.mean().item(), global_step)
             writer.add_scalar("charts/mean_norm_intrinsic_reward", norm_intrinsic_rewards.mean().item(), global_step)

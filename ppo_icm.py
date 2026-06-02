@@ -68,7 +68,7 @@ class Args:
     max_grad_norm: float = 0.5
     """the maximum norm for the gradient clipping"""
     target_kl: float = None
-    """the target KL divergence threshold"""\
+    """the target KL divergence threshold"""
 
     # new features of ICM
     exploration: str = "none"
@@ -421,11 +421,29 @@ if __name__ == "__main__":
 
                 entropy_loss = entropy.mean()
                 loss = pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef
-
+            
+                # PPO update
                 optimizer.zero_grad()
                 loss.backward()
                 nn.utils.clip_grad_norm_(agent.parameters(), args.max_grad_norm)
                 optimizer.step()
+
+                # ICM Update
+                if args.exploration == "icm":
+                    mb_obs_flat = b_obs[mb_inds].reshape(len(mb_inds), -1)
+                    mb_next_obs_flat = b_next_obs[mb_inds].reshape(len(mb_inds), -1)
+                    mb_actions_flat = b_actions[mb_inds].reshape(-1).long()
+
+                    icm_loss, inverse_loss, forward_loss = icm.loss(
+                        mb_obs_flat,
+                        mb_next_obs_flat,
+                        mb_actions_flat,
+                        beta=args.icm_beta,
+                    )
+
+                    icm_optimizer.zero_grad()
+                    icm_loss.backward()
+                    icm_optimizer.step()
 
             if args.target_kl is not None and approx_kl > args.target_kl:
                 break
@@ -445,23 +463,8 @@ if __name__ == "__main__":
         writer.add_scalar("losses/explained_variance", explained_var, global_step)
         print("SPS:", int(global_step / (time.time() - start_time)))
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
-        # IMC modification
+        # ICM modification
         if args.exploration == "icm":
-            b_obs_flat = b_obs.reshape(b_obs.shape[0], -1)
-            b_next_obs_flat = b_next_obs.reshape(b_next_obs.shape[0], -1)
-            b_actions_flat = b_actions.reshape(-1).long()
-
-            icm_loss, inverse_loss, forward_loss = icm.loss(
-                b_obs_flat,
-                b_next_obs_flat,
-                b_actions_flat,
-                beta=args.icm_beta,
-            )
-
-            icm_optimizer.zero_grad()
-            icm_loss.backward()
-            icm_optimizer.step()
-
             writer.add_scalar("losses/icm_loss", icm_loss.item(), global_step)
             writer.add_scalar("losses/icm_inverse_loss", inverse_loss.item(), global_step)
             writer.add_scalar("losses/icm_forward_loss", forward_loss.item(), global_step)
