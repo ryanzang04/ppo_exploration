@@ -29,7 +29,7 @@ class Args:
     """if toggled, this experiment will be tracked with Weights and Biases"""
     wandb_project_name: str = "cleanRL"
     """the wandb's project name"""
-    wandb_entity: str = None
+    wandb_entity: str | None = None
     """the entity (team) of wandb's project"""
     capture_video: bool = False
     """whether to capture videos of the agent performances (check out `videos` folder)"""
@@ -41,9 +41,9 @@ class Args:
     """total timesteps of the experiments"""
     learning_rate: float = 2.5e-4
     """the learning rate of the optimizer"""
-    num_envs: int = 4
+    num_envs: int = 8
     """the number of parallel game environments"""
-    num_steps: int = 128
+    num_steps: int = 256
     """the number of steps to run in each environment per policy rollout"""
     anneal_lr: bool = True
     """Toggle learning rate annealing for policy and value networks"""
@@ -51,9 +51,9 @@ class Args:
     """the discount factor gamma"""
     gae_lambda: float = 0.95
     """the lambda for the general advantage estimation"""
-    num_minibatches: int = 4
+    num_minibatches: int = 8
     """the number of mini-batches"""
-    update_epochs: int = 4
+    update_epochs: int = 8
     """the K epochs to update the policy"""
     norm_adv: bool = True
     """Toggles advantages normalization"""
@@ -67,7 +67,7 @@ class Args:
     """coefficient of the value function"""
     max_grad_norm: float = 0.5
     """the maximum norm for the gradient clipping"""
-    target_kl: float = None
+    target_kl: float | None = None
     """the target KL divergence threshold"""
 
     # new features of ICM
@@ -133,14 +133,18 @@ class ICM(nn.Module):
         self.inverse_model = nn.Sequential(
             nn.Linear(2 * feature_dim, 256),
             nn.ReLU(),
-            nn.Linear(256, action_dim),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, action_dim),
         )
 
         # forward model: phi(s), one_hot(action) -> predicted phi(s')
         self.forward_model = nn.Sequential(
             nn.Linear(feature_dim + action_dim, 256),
             nn.ReLU(),
-            nn.Linear(256, feature_dim),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, feature_dim),
         )
 
     def forward(self, obs, next_obs, actions):
@@ -227,6 +231,7 @@ if __name__ == "__main__":
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
     run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
+
     if args.track:
         import wandb
 
@@ -347,7 +352,16 @@ if __name__ == "__main__":
             next_value = agent.get_value(next_obs).reshape(1, -1)
             # ICM modification
             if args.exploration == "icm":
-                norm_intrinsic_rewards = intrinsic_rewards / (intrinsic_rewards.std() + 1e-8)
+                norm_intrinsic_rewards = (intrinsic_rewards-intrinsic_rewards.mean()) / (intrinsic_rewards.std() + 1e-8)
+                # Additional position and velocity bonus
+
+                # pos = obs[:, :, 0]
+                # next_pos = next_obs_buffer[:, :, 0]
+                # next_vel = next_obs_buffer[:, :, 1]
+                # progress_bonus = 10.0 * (next_pos - pos)
+                # velocity_bonus = 1.0 * torch.abs(next_vel)
+                # shaped_rewards = rewards + progress_bonus + velocity_bonus
+
                 total_rewards = rewards + args.icm_coef * norm_intrinsic_rewards
             else:
                 norm_intrinsic_rewards = intrinsic_rewards
@@ -470,6 +484,8 @@ if __name__ == "__main__":
             writer.add_scalar("losses/icm_forward_loss", forward_loss.item(), global_step)
             writer.add_scalar("charts/mean_intrinsic_reward", intrinsic_rewards.mean().item(), global_step)
             writer.add_scalar("charts/mean_norm_intrinsic_reward", norm_intrinsic_rewards.mean().item(), global_step)
+        
+        writer.flush()
 
     envs.close()
     writer.close()

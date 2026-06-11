@@ -1,0 +1,44 @@
+program: ppo_icm.py
+name: mountaincar-icm-sweep
+method: random
+
+command:
+  - "C:/Users/Ryan/Desktop/Reinforment Learning/Caltech Summer 2026/.venv/Scripts/python.exe"
+  - ${program}
+  - ${args_no_boolean_flags}
+  - --track
+
+metric:
+  name: charts/episodic_return
+  goal: maximize
+
+parameters:
+  env-id:
+    value: MountainCar-v0
+
+  exploration:
+    value: icm
+
+  total-timesteps:
+    value: 2000000
+
+  wandb-project-name:
+    value: ppo_exploration
+
+  icm-coef:
+    values: [0.0001, 0.001, 0.01, 0.1, 1]
+
+  icm-lr:
+    values: [0.00001, 0.0001, 0.001, 0.01]
+
+  icm-beta:
+    values: [0.1, 0.2, 0.5]
+
+  ent-coef:
+    values: [0.0, 0.005, 0.01, 0.02]
+
+  learning-rate:
+    values: [0.0001, 0.001, 0.01, 0.05]
+
+  # seed:
+  #   values: [1, 2, 3]
